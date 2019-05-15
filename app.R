@@ -31,26 +31,30 @@ ui <- fluidPage(
     tabPanel("Plot", 
              sidebarLayout(
                sidebarPanel(
-                 selectizeInput("type1", "Type of Data:", 
-                                choices = c("Residualized", "Composites", "Client Predictions")),
-                 selectizeInput("wave",
+                 radioButtons("type1", "Type of Data:", 
+                                choices = c("Raw", "Composites", "Client Predictions")),
+                 radioButtons("resid1", "Residualized?", 
+                                choices = c("None", "Day", "Survey", "Day and Survey")),
+                 radioButtons("wave",
                                 "Wave:",
                                 choices = c("1", "2")),
                  selectizeInput("SID",
                                 "Participant ID #1:",
                                 choices = ""),
-                 selectizeInput("Cor1",
+                 radioButtons("Cor1",
                                 "Select Correlation Type",
                                 choices = c("Lagged", "Contemporaneous")),
-                 selectizeInput("type2", "Type of Data:", 
-                                choices = c("Residualized", "Composites", "Client Predictions")),
-                 selectizeInput("wave2",
+                 radioButtons("type2", "Type of Data:", 
+                              choices = c("Raw", "Composites", "Client Predictions")),
+                 radioButtons("resid2", "Residualized?", 
+                              choices = c("None", "Day", "Survey", "Day and Survey")),
+                 radioButtons("wave2",
                                 "Wave:",
                                 choices = c("1", "2")),
                  selectizeInput("SID2",
                                 "Participant ID #2:",
                                 choices = ""),
-                 selectizeInput("Cor2",
+                 radioButtons("Cor2",
                                 "Select Correlation Type",
                                 choices = c("Lagged", "Contemporaneous"))
                ), 
@@ -60,16 +64,20 @@ ui <- fluidPage(
     tabPanel("Centrality",  
              sidebarLayout(
                sidebarPanel(
-                 selectizeInput("type3", "Type of Data:", 
-                                choices = c("Residualized", "Composites", "Client Predictions")),
+                 radioButtons("type3", "Type of Data:", 
+                              choices = c("Raw", "Composites", "Client Predictions")),
+                 radioButtons("resid3", "Residualized?", 
+                              choices = c("None", "Day", "Survey", "Day and Survey")),
                  selectizeInput("SID3",
                                 "Participant ID #1:",
                                 choices = ""),
-                 selectizeInput("Cor3",
+                 radioButtons("Cor3",
                                 "Select Correlation Type",
                                 choices = c("Lagged", "Contemporaneous")),
-                 selectizeInput("type4", "Type of Data:", 
-                                choices = c("Residualized", "Composites", "Client Predictions")),
+                 radioButtons("type4", "Type of Data:", 
+                              choices = c("Raw", "Composites", "Client Predictions")),
+                 radioButtons("resid4", "Residualized?", 
+                              choices = c("None", "Day", "Survey", "Day and Survey")),
                  selectizeInput("SID4",
                                 "Participant ID #2:",
                                 choices = ""),
@@ -130,23 +138,47 @@ load_url <- function (url, ..., sha1 = NULL) {
 library(RColorBrewer)
 edge_colors <- RColorBrewer::brewer.pal(8, "Purples")[c(3,4,6)]
 
-idio_plot_fun <- function(data, subject, wave, type, ct){
+idio_plot_fun <- function(data, subject, wave, type, Source){
   if(type == "Lagged"){data_mod <- data$PDC}
   else{data_mod <- data$PCC}
-  keep <- colSums(is.na(data_mod)) != nrow(data_mod)
+  keep <- colSums(is.na(data_mod)) < nrow(data_mod) | rowSums(is.na(data_mod)) < nrow(data_mod)
   data_mod <- data_mod[keep,keep]
   if(type != "Lagged"){
-    data_mod[upper.tri(data_mod)] <- data_mod[lower.tri(data_mod)]
+    data_mod[upper.tri(data_mod)] <- t(data_mod)[upper.tri(data_mod)]
     diag(data_mod) <- 1
+  } #else {diag(data_mod) <- NA}
+  colnames(data_mod) <- mapvalues(colnames(data_mod), from = vars$old, vars$new, warn_missing = F)
+  rownames(data_mod) <- mapvalues(rownames(data_mod), from = vars$old, vars$new, warn_missing = F)
+  if(grepl("Comp", Source) == F){
+    cent_col <- centrality_pred %>% filter(ID == subject) %>% select(-ID) %>%
+      filter(Variable %in% rownames(data_mod)) %>%
+      full_join(tibble(Variable = rownames(data_mod))) %>%
+      mutate(`Most/Least` = ifelse(is.na(`Most/Least`), "Neither", `Most/Least`),
+             color = mapvalues(`Most/Least`, c("Most", "Least", "Neither"), c("black", "white", "gray")),
+             weight = mapvalues(`Most/Least`, unique(`Most/Least`), c(2, 4, 6)),
+             Variable = factor(Variable, levels = rownames(data_mod))) %>%
+      arrange(Variable)
+    groups <- list(Most = which(cent_col$`Most/Least` == "Most"),
+                   Least = which(cent_col$`Most/Least` == "Least"),
+                   Neither = which(cent_col$`Most/Least` == "Neither"))
   }
-  node_col <- RColorBrewer::brewer.pal(nrow(data_mod), "PiYG")
-  b5_groups <- list(A = c(1,7), E = c(2, 6), C = c(3,8), N = c(4,5,9))
+  if(Source == "Client Predictions"){
+    node_col <- cent_col$color
+    border_width <- rep(2, nrow(data_mod))
+  } else if (grepl("Comp", Source)){
+    groups <- list(all = seq(1, nrow(data_mod)))
+    node_col <- rep("white", nrow(data_mod))
+    border_width <- rep(2, nrow(data_mod))
+  } else {
+    node_col <- rep("white", nrow(data_mod))
+    border_width <- as.numeric(cent_col$weight)
+  }
   plot <- 
     qgraph(data_mod, layout = "spring", loop = .7, node.width = 1.85, edge.width = 1,
-           esize = 7, title = sprintf("%s Wave %s for S%s", type, wave, subject),
-           label.font = 2, repulsion = .8, label.fill.vertical = 1, border.width = 4,
-           label.fill.horizontal = 1, edge.color = "black", #groups = b5_groups, 
-           #color = rev(t(RColorBrewer::brewer.pal(9, "Purples")[seq(1,7,2)])),
+           esize = 7, title = sprintf("%s %s Wave %s for S%s", Source, type, wave, subject),
+           label.font = 2, repulsion = .8, label.fill.vertical = 1, border.width = border_width,
+           label.fill.horizontal = 1, edge.color = "black", 
+           groups = groups, color = node_col,
            legend = F, DoNotPlot = TRUE, mar = c(4,4,4,4))
   #change lines to dashed
   plot$graphAttributes$Edges$lty[plot$Edgelist$weight < 0] <- 2
@@ -218,7 +250,7 @@ centrality_Plot_fun <- function(x, ct, d){
 #   }
 # }
 
-load_url("https://github.com/emoriebeck/PSC_EMA/raw/master/app_data.RData")
+load_url("https://github.com/emoriebeck/PSC_EMA/blob/master/app_data.RData?raw=true")
 
 library(qgraph)
 library(ggridges)
@@ -229,57 +261,57 @@ library(gridExtra)
 server <- function(input, output, session) {
   observe({
     if(as.character(input$wave) == "1"){
-      subs1 <- unique((gVAR_data %>% filter(wave == "1"))$SID)
+      subs1 <- unique((gVAR_data %>% filter(wave == "1"))$ID)
       updateSelectizeInput(session, 'SID', choices = c("", subs1))
     } else {
-      subs1 <- unique((gVAR_data %>% filter(wave == "2"))$SID)
+      subs1 <- unique((gVAR_data %>% filter(wave == "2"))$ID)
       updateSelectizeInput(session, 'SID', choices = c("", subs1))
     }
   })
   
   observe({
     if(as.character(input$wave2) == "1"){
-      subs2 <- unique((gVAR_data %>% filter(wave == "1"))$SID)
+      subs2 <- unique((gVAR_data %>% filter(wave == "1"))$ID)
       updateSelectizeInput(session, 'SID2', choices = c("", subs2))
     } else {
-      subs2 <- unique((gVAR_data %>% filter(wave == "2"))$SID)
+      subs2 <- unique((gVAR_data %>% filter(wave == "2"))$ID)
       updateSelectizeInput(session, 'SID2', choices = c("", subs2))
     }
     
   })
   
+  type_fun <- function(type, resid){
+    source <- ifelse(!resid == "None" & type == "Composites", paste(resid, "Residualized Composites"),
+              ifelse(!resid == "None" & type == "Raw", paste(resid, "Residualized Composites"),
+              ifelse(resid == "None" & type == "Composites", "Composites",
+              ifelse(resid == "None" & type == "Raw", "Raw",
+              "Client Predictions"))))
+  }
+  
   observe({
-    subs3 <- unique(gVAR_data$SID)
+    source3 <- type_fun(input$type3, input$resid3)
+    source4 <- type_fun(input$type4, input$resid4)
+    subs3 <- unique((centrality_long %>% filter(dir == input$Cor3 & type == source3))$ID)
+    subs4 <- unique((centrality_long %>% filter(dir == input$Cor4 & type == source4))$ID)
     updateSelectizeInput(session, 'SID3', choices = c("",subs3))
-    updateSelectizeInput(session, 'SID4', choices = c("", subs3))
+    updateSelectizeInput(session, 'SID4', choices = c("", subs4))
   })
   
   output$gVARPlot <- renderPlot({
     # generate bins based on input$bins from ui.R
-    print(as.character(input$wave))
     validate(
       need(input$SID, input$SID2, 'Please select 2 Subject IDs'),
       need(input$SID2, 'Please select 2 Subject IDs'))
-    if(input$Cor1 == "Lagged"){
-      dat <- (gVAR_data %>% filter(SID == input$SID & wave == input$wave & type == input$type))$PDC[[1]]
-      plot1 <- idio_plot_fun(dat, input$SID, input$wave, input$Cor1, input$type)
+      
+      source1 <- type_fun(input$type1, input$resid1)
+      dat <- (gVAR_data %>% filter(ID == input$SID & wave == input$wave & source == source1))$gVAR[[1]]
+      plot1 <- idio_plot_fun(dat, input$SID, input$wave, input$Cor1, source1)
+      
+      source2 <- type_fun(input$type2, input$resid2)
+      dat <- (gVAR_data %>% filter(ID == input$SID2 & wave == input$wave2 & source == source2))$gVAR[[1]]
+      plot2 <- idio_plot_fun(dat, input$SID2, input$wave2, input$Cor2, source2)
       # plot1  <-  plot_beta_w1[[input$SID]]
-    } else{
-      dat <- (gVAR_data %>% filter(SID == input$SID & wave == input$wave & type == input$type))$PCC[[1]]
-      plot1 <- idio_plot_fun(dat, input$SID, input$wave, input$Cor1, input$type)
-      # plot1  <-  plot_kappa_w1[[input$SID]]
-    }
-    
-    if(input$Cor2 == "Lagged"){
-      dat <- (gVAR_data %>% filter(SID == input$SID2 & wave == input$wave2 & type == input$type2))$PDC[[1]]
-      head(dat)
-      plot2 <- idio_plot_fun(dat, input$SID2, input$wave2, input$Cor2, input$type2)
-      # plot1  <-  plot_beta_w1[[input$SID]]
-    } else{
-      dat <- (gVAR_data %>% filter(SID == input$SID2 & wave == input$wave2 & type == input$type2))$PCC[[1]]
-      plot2 <- idio_plot_fun(dat, input$SID2, input$wave2, input$Cor2, input$type2)
-      # plot1  <-  plot_kappa_w1[[input$SID]]
-    }
+      print(plot1); print(plot2)
     # draw the histogram with the specified number of bins
     if(!("" %in% input)){
       par(mfrow = c(1,2))
@@ -293,8 +325,10 @@ server <- function(input, output, session) {
     validate(
       need(input$SID3, input$SID4, 'Please select 2 Subject IDs'),
       need(input$SID4, 'Please select 2 Subject IDs'))
-      plot1  <-  centrality_Plot_fun(input$SID3, input$type3, input$Cor3)
-      plot2  <-  centrality_Plot_fun(input$SID4, input$type4, input$Cor4)
+      source3 <- type_fun(input$type3, input$resid3)
+      source4 <- type_fun(input$type4, input$resid4)
+      plot1  <-  centrality_Plot_fun(input$SID3, source3, input$Cor3)
+      plot2  <-  centrality_Plot_fun(input$SID4, source4, input$Cor4)
     
     grid.arrange(plot1, plot2, ncol = 2)
   })
