@@ -304,11 +304,11 @@ server <- function(input, output, session) {
       need(input$SID2, 'Please select 2 Subject IDs'))
       
       source1 <- type_fun(input$type1, input$resid1)
-      dat <- (gVAR_data %>% filter(ID == input$SID & wave == input$wave & source == source1))$gVAR[[1]]
+      dat <- (gVAR_data %>% filter(ID == input$SID & wave == input$wave & source == source1 & gamma == ".1"))$gVAR[[1]]
       plot1 <- idio_plot_fun(dat, input$SID, input$wave, input$Cor1, source1)
       
       source2 <- type_fun(input$type2, input$resid2)
-      dat <- (gVAR_data %>% filter(ID == input$SID2 & wave == input$wave2 & source == source2))$gVAR[[1]]
+      dat <- (gVAR_data %>% filter(ID == input$SID2 & wave == input$wave2 & source == source2 & gamma == ".1"))$gVAR[[1]]
       plot2 <- idio_plot_fun(dat, input$SID2, input$wave2, input$Cor2, source2)
       # plot1  <-  plot_beta_w1[[input$SID]]
       print(plot1); print(plot2)
