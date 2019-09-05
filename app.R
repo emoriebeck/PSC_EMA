@@ -252,6 +252,8 @@ centrality_Plot_fun <- function(x, ct, d){
 
 load_url("https://github.com/emoriebeck/PSC_EMA/blob/master/app_data.RData?raw=true")
 
+gVAR_data <- gVAR_data %>% mutate(gamma = ifelse(is.na(gamma), .1, gamma))
+
 library(qgraph)
 library(ggridges)
 library(tidyverse)
@@ -277,7 +279,6 @@ server <- function(input, output, session) {
       subs2 <- unique((gVAR_data %>% filter(wave == "2"))$ID)
       updateSelectizeInput(session, 'SID2', choices = c("", subs2))
     }
-    
   })
   
   type_fun <- function(type, resid){
@@ -291,8 +292,8 @@ server <- function(input, output, session) {
   observe({
     source3 <- type_fun(input$type3, input$resid3)
     source4 <- type_fun(input$type4, input$resid4)
-    subs3 <- unique((centrality_long %>% filter(dir == input$Cor3 & type == source3))$ID)
-    subs4 <- unique((centrality_long %>% filter(dir == input$Cor4 & type == source4))$ID)
+    subs3 <- unique((centrality_long %>% filter(dir == input$Cor3 & source == source3))$ID)
+    subs4 <- unique((centrality_long %>% filter(dir == input$Cor4 & source == source4))$ID)
     updateSelectizeInput(session, 'SID3', choices = c("",subs3))
     updateSelectizeInput(session, 'SID4', choices = c("", subs4))
   })
@@ -304,11 +305,11 @@ server <- function(input, output, session) {
       need(input$SID2, 'Please select 2 Subject IDs'))
       
       source1 <- type_fun(input$type1, input$resid1)
-      dat <- (gVAR_data %>% filter(ID == input$SID & wave == input$wave & source == source1 & gamma == ".1"))$gVAR[[1]]
+      dat <- (gVAR_data %>% filter(ID == input$SID & wave == input$wave & source == source1 & gamma == .1))$gVAR[[1]] # & gamma == .1
       plot1 <- idio_plot_fun(dat, input$SID, input$wave, input$Cor1, source1)
       
       source2 <- type_fun(input$type2, input$resid2)
-      dat <- (gVAR_data %>% filter(ID == input$SID2 & wave == input$wave2 & source == source2 & gamma == ".1"))$gVAR[[1]]
+      dat <- (gVAR_data %>% filter(ID == input$SID2 & wave == input$wave2 & source == source2))$gVAR[[1]] # & gamma == .1
       plot2 <- idio_plot_fun(dat, input$SID2, input$wave2, input$Cor2, source2)
       # plot1  <-  plot_beta_w1[[input$SID]]
       print(plot1); print(plot2)
