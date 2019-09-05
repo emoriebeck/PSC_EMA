@@ -31,6 +31,9 @@ ui <- fluidPage(
     tabPanel("Plot", 
              sidebarLayout(
                sidebarPanel(
+                 selectizeInput("SID",
+                                "Participant ID #1:",
+                                choices = ""),
                  radioButtons("type1", "Type of Data:", 
                                 choices = c("Raw", "Composites", "Client Predictions")),
                  radioButtons("resid1", "Residualized?", 
@@ -38,12 +41,12 @@ ui <- fluidPage(
                  radioButtons("wave",
                                 "Wave:",
                                 choices = c("1", "2")),
-                 selectizeInput("SID",
-                                "Participant ID #1:",
-                                choices = ""),
                  radioButtons("Cor1",
                                 "Select Correlation Type",
                                 choices = c("Lagged", "Contemporaneous")),
+                 selectizeInput("SID2",
+                                "Participant ID #2:",
+                                choices = ""),
                  radioButtons("type2", "Type of Data:", 
                               choices = c("Raw", "Composites", "Client Predictions")),
                  radioButtons("resid2", "Residualized?", 
@@ -51,9 +54,6 @@ ui <- fluidPage(
                  radioButtons("wave2",
                                 "Wave:",
                                 choices = c("1", "2")),
-                 selectizeInput("SID2",
-                                "Participant ID #2:",
-                                choices = ""),
                  radioButtons("Cor2",
                                 "Select Correlation Type",
                                 choices = c("Lagged", "Contemporaneous"))
@@ -64,24 +64,24 @@ ui <- fluidPage(
     tabPanel("Centrality",  
              sidebarLayout(
                sidebarPanel(
+                 selectizeInput("SID3",
+                                "Participant ID #1:",
+                                choices = ""),
                  radioButtons("type3", "Type of Data:", 
                               choices = c("Raw", "Composites", "Client Predictions")),
                  radioButtons("resid3", "Residualized?", 
                               choices = c("None", "Day", "Survey", "Day and Survey")),
-                 selectizeInput("SID3",
-                                "Participant ID #1:",
-                                choices = ""),
                  radioButtons("Cor3",
                                 "Select Correlation Type",
                                 choices = c("Lagged", "Contemporaneous")),
+                 selectizeInput("SID4",
+                                "Participant ID #2:",
+                                choices = ""),
                  radioButtons("type4", "Type of Data:", 
                               choices = c("Raw", "Composites", "Client Predictions")),
                  radioButtons("resid4", "Residualized?", 
                               choices = c("None", "Day", "Survey", "Day and Survey")),
-                 selectizeInput("SID4",
-                                "Participant ID #2:",
-                                choices = ""),
-                 selectizeInput("Cor4",
+                 radioButtons("Cor4",
                                 "Select Correlation Type",
                                 choices = c("Lagged", "Contemporaneous"))
                ), 
@@ -197,7 +197,7 @@ idio_plot_fun <- function(data, subject, wave, type, Source){
 
 centrality_Plot_fun <- function(x, ct, d){
   centrality_long  %>%
-    filter(ID %in% x & type == ct & dir == d) %>%
+    filter(ID %in% x & source == ct & dir == d) %>%
     arrange(measure, wave) %>%
     ggplot(aes(x = var, y = z, group = wave))+
     geom_line(aes(linetype = wave), color = "black", size = .3) + 
@@ -252,8 +252,6 @@ centrality_Plot_fun <- function(x, ct, d){
 
 load_url("https://github.com/emoriebeck/PSC_EMA/blob/master/app_data.RData?raw=true")
 
-gVAR_data <- gVAR_data %>% mutate(gamma = ifelse(is.na(gamma), .1, gamma))
-
 library(qgraph)
 library(ggridges)
 library(tidyverse)
@@ -279,6 +277,7 @@ server <- function(input, output, session) {
       subs2 <- unique((gVAR_data %>% filter(wave == "2"))$ID)
       updateSelectizeInput(session, 'SID2', choices = c("", subs2))
     }
+    
   })
   
   type_fun <- function(type, resid){
@@ -305,11 +304,11 @@ server <- function(input, output, session) {
       need(input$SID2, 'Please select 2 Subject IDs'))
       
       source1 <- type_fun(input$type1, input$resid1)
-      dat <- (gVAR_data %>% filter(ID == input$SID & wave == input$wave & source == source1 & gamma == .1))$gVAR[[1]] # & gamma == .1
+      dat <- (gVAR_data %>% filter(ID == input$SID & wave == input$wave & source == source1 & gamma == .1))$gVAR[[1]]
       plot1 <- idio_plot_fun(dat, input$SID, input$wave, input$Cor1, source1)
       
       source2 <- type_fun(input$type2, input$resid2)
-      dat <- (gVAR_data %>% filter(ID == input$SID2 & wave == input$wave2 & source == source2))$gVAR[[1]] # & gamma == .1
+      dat <- (gVAR_data %>% filter(ID == input$SID2 & wave == input$wave2 & source == source2 & gamma == .1))$gVAR[[1]]
       plot2 <- idio_plot_fun(dat, input$SID2, input$wave2, input$Cor2, source2)
       # plot1  <-  plot_beta_w1[[input$SID]]
       print(plot1); print(plot2)
